@@ -1,11 +1,40 @@
-// Alias Matter modules for convenience.
+// --------------------------
+// Global Error Handling
+// --------------------------
+
+// This function updates the top text with error details.
+function showErrorMessage(message) {
+  const topTextElement = document.getElementById("top-text");
+  if (topTextElement) {
+    topTextElement.textContent = message;
+    topTextElement.style.color = 'red';
+  }
+}
+
+// Catch any global errors.
+window.addEventListener('error', (event) => {
+  const errorMsg = `Error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
+  showErrorMessage(errorMsg);
+});
+
+// Also handle unhandled promise rejections.
+window.addEventListener('unhandledrejection', (event) => {
+  const errorMsg = `Unhandled Promise Rejection: ${event.reason}`;
+  showErrorMessage(errorMsg);
+});
+
+// --------------------------
+// Set Up Matter.js and PIXI.js
+// --------------------------
+
+// Alias Matter.js modules for convenience.
 const Engine = Matter.Engine,
   World = Matter.World,
   Bodies = Matter.Bodies,
   Body = Matter.Body,
   Events = Matter.Events;
 
-// Create Matter.js engine and world.
+// Create a Matter.js engine and world.
 const engine = Engine.create();
 const world = engine.world;
 
@@ -17,15 +46,15 @@ const app = new PIXI.Application({
 });
 document.body.appendChild(app.view);
 
-// ----------
+// --------------------------
 // Create Physics Bodies
-// ----------
+// --------------------------
 
-// Dimensions for the player rectangle.
+// Player dimensions.
 const playerWidth = 40;
 const playerHeight = 60;
 
-// Create the player body: a dynamic rectangle.
+// Create a dynamic player body.
 const player = Bodies.rectangle(100, 300, playerWidth, playerHeight, {
   restitution: 0,
   friction: 0.01,
@@ -33,8 +62,7 @@ const player = Bodies.rectangle(100, 300, playerWidth, playerHeight, {
 });
 World.add(world, player);
 
-// Create the ground (static) body.
-// Here, we create a wide rectangle that spans the bottom of the viewport.
+// Create a static ground body.
 const ground = Bodies.rectangle(
   app.screen.width / 2,
   app.screen.height - 20,
@@ -44,7 +72,7 @@ const ground = Bodies.rectangle(
 );
 World.add(world, ground);
 
-// Create two platforms as static bodies.
+// Create two static platform bodies.
 const platform1 = Bodies.rectangle(300, app.screen.height - 100, 200, 20, {
   isStatic: true,
 });
@@ -53,24 +81,18 @@ const platform2 = Bodies.rectangle(600, app.screen.height - 200, 200, 20, {
 });
 World.add(world, [platform1, platform2]);
 
-// ----------
+// --------------------------
 // Create PIXI Graphics for Each Body
-// ----------
+// --------------------------
 
-// For a smoother sync between Matter.js bodies and PIXI visuals it is easiest
-// to draw each rectangle with its center at (0,0) so we only need to update
-// position and rotation of the container.
-
-//
-// Player sprite: drawn as a red rectangle.
+// Player sprite: a red rectangle.
 const playerGraphics = new PIXI.Graphics();
 playerGraphics.beginFill(0xff0000);
 playerGraphics.drawRect(-playerWidth / 2, -playerHeight / 2, playerWidth, playerHeight);
 playerGraphics.endFill();
 app.stage.addChild(playerGraphics);
 
-//
-// Ground sprite: drawn as a green rectangle.
+// Ground sprite: a green rectangle.
 const groundWidth = app.screen.width,
   groundHeight = 40;
 const groundGraphics = new PIXI.Graphics();
@@ -79,8 +101,7 @@ groundGraphics.drawRect(-groundWidth / 2, -groundHeight / 2, groundWidth, ground
 groundGraphics.endFill();
 app.stage.addChild(groundGraphics);
 
-//
-// Platform sprites: drawn as blue rectangles.
+// Platform sprites: blue rectangles.
 const platformWidth = 200,
   platformHeight = 20;
 
@@ -96,16 +117,13 @@ platformGraphics2.drawRect(-platformWidth / 2, -platformHeight / 2, platformWidt
 platformGraphics2.endFill();
 app.stage.addChild(platformGraphics2);
 
-// ----------
+// --------------------------
 // Keyboard Controls
-// ----------
+// --------------------------
 
-// A simple object to keep track of which keys are pressed.
 const keys = {};
 
-// Basic controls:
-//   Left/Right: ArrowLeft or ArrowRight (or A/D)
-//   Jump: ArrowUp, W, or Space
+// Listen for keydown events.
 window.addEventListener("keydown", (e) => {
   keys[e.code] = true;
 });
@@ -113,19 +131,18 @@ window.addEventListener("keyup", (e) => {
   keys[e.code] = false;
 });
 
-// To allow a jump only when the player is on a platform,
-// we set a flag when collisions occur.
+// Allows jump only when the player is grounded.
 let canJump = false;
 
-// Use Matter's collision events to detect when the player touches other bodies.
+// Matter.js collision events to detect ground contact.
 Events.on(engine, "collisionStart", function (event) {
   event.pairs.forEach((pair) => {
-    // If the player is involved in the collision, allow jumping.
     if (pair.bodyA === player || pair.bodyB === player) {
       canJump = true;
     }
   });
 });
+
 Events.on(engine, "collisionEnd", function (event) {
   event.pairs.forEach((pair) => {
     if (pair.bodyA === player || pair.bodyB === player) {
@@ -134,16 +151,15 @@ Events.on(engine, "collisionEnd", function (event) {
   });
 });
 
-// ----------
+// --------------------------
 // Game Loop
-// ----------
+// --------------------------
 
-// Use PIXI's ticker to update our physics engine and render our sprites.
 app.ticker.add((delta) => {
-  // Update physics engine using a fixed timestep (16.67ms for ~60fps).
+  // Update the Matter.js engine.
   Engine.update(engine, 1000 / 60);
 
-  // --- Player Movement --- //
+  // Apply forces based on key presses.
   const forceMagnitudeX = 0.005;
   const forceMagnitudeY = 0.015;
   if (keys["ArrowLeft"] || keys["KeyA"]) {
@@ -153,24 +169,19 @@ app.ticker.add((delta) => {
     Body.applyForce(player, player.position, { x: forceMagnitudeX, y: 0 });
   }
   if ((keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) && canJump) {
-    // Apply an upward force to simulate a jump.
     Body.applyForce(player, player.position, { x: 0, y: -forceMagnitudeY });
-    // Prevent continuous jumping.
     canJump = false;
   }
 
-  // --- Sync PIXI Graphics with Matter Bodies --- //
-  // Update the player sprite.
+  // Sync the PIXI graphics with the Matter.js bodies.
   playerGraphics.x = player.position.x;
   playerGraphics.y = player.position.y;
   playerGraphics.rotation = player.angle;
 
-  // Update the ground sprite.
   groundGraphics.x = ground.position.x;
   groundGraphics.y = ground.position.y;
   groundGraphics.rotation = ground.angle;
 
-  // Update platform sprites.
   platformGraphics1.x = platform1.position.x;
   platformGraphics1.y = platform1.position.y;
   platformGraphics1.rotation = platform1.angle;
