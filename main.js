@@ -39,14 +39,46 @@ const player = Bodies.rectangle(100, canvas.height - 75, 40, 40, {
 // Add objects to the world
 World.add(engine.world, [ground, player, ...platforms]);
 
-// Handle player controls
+// Track key states
+const keys = {
+    ArrowLeft: false,
+    ArrowRight: false,
+    ArrowUp: false
+};
+
+// Handle keydown and keyup events
 document.addEventListener('keydown', (event) => {
+    if (keys.hasOwnProperty(event.code)) {
+        keys[event.code] = true;
+    }
+});
+
+document.addEventListener('keyup', (event) => {
+    if (keys.hasOwnProperty(event.code)) {
+        keys[event.code] = false;
+    }
+});
+
+// Check if player is grounded
+function isGrounded() {
+    const tolerance = 5; // Small tolerance for detecting ground contact
+    return player.position.y + player.bounds.max.y >= ground.position.y - tolerance;
+}
+
+// Apply movement logic in each engine update
+Events.on(engine, 'beforeUpdate', () => {
     const speed = 5;
-    if (event.code === 'ArrowLeft') {
-        Body.setVelocity(player, { x: -speed, y: player.velocity.y });
-    } else if (event.code === 'ArrowRight') {
-        Body.setVelocity(player, { x: speed, y: player.velocity.y });
-    } else if (event.code === 'ArrowUp' && Math.abs(player.velocity.y) < 1) { // Jump only when grounded
+
+    if (isGrounded()) {
+        if (keys.ArrowLeft) {
+            Body.setVelocity(player, { x: -speed, y: player.velocity.y });
+        }
+        if (keys.ArrowRight) {
+            Body.setVelocity(player, { x: speed, y: player.velocity.y });
+        }
+    }
+
+    if (keys.ArrowUp && isGrounded()) { // Jump only when grounded
         Body.setVelocity(player, { x: player.velocity.x, y: -10 });
     }
 });
